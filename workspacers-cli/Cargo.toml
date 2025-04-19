@@ -1,0 +1,14 @@
+[package]
+name = "workspacers-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = { path = "../common" }
+log = "0.4"
+config = "0.15.11"
+simplelog = "0.12"
+fzf-wrapped = "0.1.4"
+serde = { version = "1.0", features = ["derive"] }
+clap = { version = "4.4", features = ["derive"] }
+rustyline = "15.0.0"

@@ -1,0 +1,22 @@
+[workspace]
+members = [
+    "common",
+    "workspacers-cli",
+    "workspacers-nvim",
+]
+resolver = "3"
+
+# [package]
+# name = "workspacesrs_nvim"
+# version = "0.1.0"
+# authors = ["Lee Laffan"]
+# edition = "2024"
+#
+# [dependencies]
+# nvim-rs = { version = "0.6", features = ["use_tokio"] }
+# tokio = { version = "1.36", features = ["rt"] }
+# async-trait = "0.1"
+# log = "0.4"
+# simplelog = "0.12"
+# dirs-next = "2.0"
+# config = "0.15.11"

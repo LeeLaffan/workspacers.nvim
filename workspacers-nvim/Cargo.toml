@@ -1,0 +1,16 @@
+[package]
+name = "workspacers-nvim"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = { path = "../common" }
+nvim-rs = { version = "0.6", features = ["use_tokio"] }
+clap = { version = "4.4", features = ["derive"] }
+tokio = { version = "1.36", features = ["rt"] }
+async-trait = "0.1"
+log = "0.4"
+simplelog = "0.12"
+dirs-next = "2.0"
+config = "0.15.11"
+toml = "0.8.20"
