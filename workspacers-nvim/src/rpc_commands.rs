@@ -1,4 +1,3 @@
-use crate::utils;
 use async_trait::async_trait;
 use common::{
     formatter,
@@ -67,13 +66,36 @@ impl Handler for NeovimHandler {
     }
 }
 
+/// Sends an array of objects in the form:
+/// [
+///    {
+///        "Fmt": " [ Entry1 ] - [ Path1 ] ",
+///        "Workspace": {
+///           "Name": "Entry1"
+///           "Path": "Path1"
+///        }
+///    },
+///    { ... }
+/// ],
 fn rpc_ws_list(workspaces: &Vec<Workspace>) -> Result<Value, String> {
-    Ok(Value::Array(
-        formatter::fmt(workspaces)
-            .iter()
-            .map(|(ws_str, _)| Value::String(ws_str.to_string().into()))
-            .collect(),
-    ))
+    let result = formatter::fmt(workspaces)
+        .iter()
+        .map(|(ws_str, ws)| {
+            let mut map = Vec::new();
+
+            let mut workspace_map = Vec::new();
+            workspace_map.push((Value::String("Name".into()), Value::String(ws.name.to_string().into())));
+            workspace_map.push((Value::String("Path".into()), Value::String(ws.path.to_string().into())));
+
+            map.push((
+                Value::String(ws_str.to_string().into()),
+                Value::Map(workspace_map.into()),
+            ));
+            Value::Map(map.into())
+        })
+        .collect::<Vec<Value>>();
+
+    Ok(Value::Array(result))
 }
 
 fn rpc_ws_record(workspaces: &Vec<Workspace>, args: Vec<Value>) -> Result<Value, String> {
@@ -104,11 +126,10 @@ fn rpc_ws_record(workspaces: &Vec<Workspace>, args: Vec<Value>) -> Result<Value,
 fn rpc_ws_add(mut workspaces: Vec<Workspace>, json_file: &PathBuf, args: Vec<Value>) -> Result<Value, Error> {
     if let Some(ws_arg) = args[0].as_map() {
         let ws = json::Workspace {
-            name: utils::convert_ws_add(ws_arg, "name")?,
-            path: utils::fmt_path(utils::convert_ws_add(ws_arg, "path")?),
+            name: convert_ws_add(ws_arg, "name")?,
+            path: formatter::unfmt_path(convert_ws_add(ws_arg, "path")?),
         };
         info!("req to add: [[{}]]", ws.path);
-        // let mut workspaces = json::read_workspaces(json_path);
         workspaces.insert(workspaces.len(), ws);
 
         match json::write_workspaces(json_file, &workspaces) {
@@ -185,7 +206,7 @@ fn rpc_ws_replace(mut workspaces: Vec<Workspace>, json_file: &PathBuf, args: Vec
 
         workspaces[idx] = json::Workspace {
             name: name_value.to_string(),
-            path: utils::fmt_path(path_value.to_string()),
+            path: formatter::unfmt_path(path_value.to_string()),
         };
 
         // Write updated workspaces
@@ -234,5 +255,18 @@ fn rpc_ws_demote(workspaces: &Vec<Workspace>, json_file: &PathBuf, args: Vec<Val
             std::io::ErrorKind::Other,
             "Could not write workspace",
         )),
+    }
+}
+
+pub fn convert_ws_add(obj: &Vec<(Value, Value)>, prop: &str) -> Result<String, Error> {
+    if let Some(prop_match) = obj.iter().find(|p| p.0.as_str().unwrap() == prop) {
+        info!("match to add: {}", &prop_match.1.to_string());
+        Ok(formatter::unfmt_ws_value(&prop_match.1.to_string()))
+    } else {
+        error!("could not read workspace add data - inner");
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "could not read workspace add data - inner",
+        ))
     }
 }

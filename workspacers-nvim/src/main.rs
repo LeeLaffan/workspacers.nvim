@@ -11,7 +11,6 @@ use std::{
 use tokio::runtime;
 
 mod rpc_commands;
-mod utils;
 
 #[derive(Parser, Debug)]
 #[command(long_about = None)]

@@ -1,19 +1,23 @@
-use std::{io::Write, path::PathBuf};
-
 use clap::{Parser, command};
-use common::{
-    formatter, json,
-    setup::{config, logging},
-};
+use common::{json, setup::logging};
 
-mod operations;
+mod add_workspace;
 mod picker;
 
-#[derive(Debug)]
-pub enum AppError {
-    Cancelled(std::io::Error),
-    InvalidData(String),
-    NotFound,
+#[derive(Parser, Debug)]
+#[command(long_about = None)]
+struct CliArgs {
+    /// JSON File to be used to store workspaces
+    #[arg(long = "json-file", hide = false)]
+    json_file: Option<std::path::PathBuf>,
+
+    /// Print the JSON file used
+    #[arg(short = 'j', long, default_value_t = false)]
+    print_json: bool,
+
+    /// Add a new Workspace
+    #[arg(short = 'a', long, default_value_t = false)]
+    add: bool,
 }
 
 fn main() {
@@ -27,76 +31,29 @@ fn main() {
 fn run() -> Result<(), String> {
     let args = CliArgs::parse();
     logging::setup_logger().map_err(|err| format!("Could not setup logger: {err}"))?;
-    let cfg = config::get_config().map_err(|err| format!("Could not setup config: {err}"))?;
-
-    if args.add {
-        if args.shortcut.is_some() {
-            return Err("Cannot combine args: add & shortcut".to_string());
-        }
-        let ws = operations::add_workspace(&cfg)?;
+    let json_file = json::get_json_path(args.json_file, "workspacers").unwrap();
+    if args.print_json {
+        println!("{}", json_file.to_string_lossy().to_string());
         return Ok(());
     }
-    if args.delete {
-        if args.shortcut.is_none() {
-            return Err("Cannot delete without shortcut".to_string());
-        }
-        // let ws_match = return operations::delete_workspace(&workspaces, & cfg, args.shortcut.unwrap());
-        todo!();
-    }
-    if args.shortcut.is_some() {
-        todo!()
+    let workspaces = json::read_workspaces(&json_file);
+
+    if args.add {
+        add_workspace::add(&workspaces, &json_file)?;
+        return Ok(());
     }
 
-    match picker::pick_workspace(&cfg)? {
+    match picker::pick_workspace(workspaces)? {
         None => Ok(()), // Don't print when no workspace selected
         Some(ws) => {
-            if !args.raw && args.pipe_file.is_some() {
-                // println!("Workspace selected! 🚀{ws}");
-                println!("{}", ws.path);
-                return Ok(write_cd(&args.pipe_file.unwrap(), &ws.path)?);
-            }
             return Ok(println!("{}", &ws.path));
         }
     }
 }
 
-#[derive(Parser, Debug)]
-#[command(long_about = None)]
-struct CliArgs {
-    /// Add a new Workspace
-    #[arg(short = 'a', long, default_value_t = false)]
-    add: bool,
-
-    /// Delete [SHORTCUT]
-    #[arg(short = 'd', long, default_value_t = false, requires = "shortcut")]
-    delete: bool,
-
-    /// Opens the Workspace with editor (configurable)
-    #[arg(short = 'r', long, default_value_t = false)]
-    open: bool,
-
-    /// Shortcut string (a single positional argument without a dash)
-    #[arg(index = 1, value_name = "SHORTCUT")]
-    shortcut: Option<String>,
-
-    #[arg(long = "PIPE_FILE", hide = true)]
-    pipe_file: Option<std::path::PathBuf>,
-
-    /// Raw prints the result (for piping)
-    #[arg(short = 'r', long, default_value_t = false)]
-    raw: bool,
-}
-
-fn write_cd(pipe_file: &PathBuf, dir: &str) -> Result<(), String> {
-    let file = std::fs::OpenOptions::new()
-        .write(true)
-        .open(pipe_file)
-        .map_err(|e| format!("Failed to open command pipe: {}", e))?;
-
-    let mut writer = std::io::BufWriter::new(file);
-    writer
-        .write_fmt(format_args!("cd {}; ls;", dir))
-        .map_err(|e| format!("Failed to write command: {}", e))?;
-
-    writer.flush().map_err(|e| format!("Failed to flush command: {}", e))
+#[derive(Debug)]
+pub enum AppError {
+    Cancelled(std::io::Error),
+    InvalidData(String),
+    NotFound,
 }

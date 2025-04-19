@@ -1,6 +1,7 @@
 local M = {}
 local pickers = require "telescope.pickers"
 local finders = require "telescope.finders"
+local previewers = require "telescope.previewers"
 local conf = require("telescope.config").values
 local actions = require("telescope.actions")
 local action_state = require "telescope.actions.state"
@@ -9,7 +10,7 @@ local close = function(opts)
     actions.close(opts.bufnr)
 end
 
-local callback = function(opts)
+local select_callback = function(opts)
     opts.selected = action_state.get_selected_entry()
     opts.callback(opts)
 end
@@ -25,15 +26,23 @@ M.pick = function(opts)
         results = opts.vals
     }
     opts.sorter = conf.generic_sorter({})
+    -- opts.previewer = opts.previewer or previewers.new_buffer_previewer({
+    --     define_preview = function(self, entry, status)
+    --         local content = opts.get_preview_content and opts.get_preview_content(entry) or "No preview available"
+    --         vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, vim.split(content, "\n"))
+    --     end
+    -- })
+    opts.preview = true
+    -- In your pick function
     opts.attach_mappings = function(bufnr, map)
+        -- Add Tele vars to opts
         opts.bufnr = bufnr
         opts.map = map
         opts.close = function() close(opts) end
-        actions.select_default:replace(function(tele_opts)
-            vim.print(tele_opts)
-            -- close(opts)
-            callback(opts)
+        actions.select_default:replace(function()
+            select_callback(opts)
         end)
+        -- Add keys
         for k, v in pairs(opts.keys) do
             map({ 'i', 'n' }, k, function()
                 opts.selected = action_state.get_selected_entry()
@@ -43,10 +52,12 @@ M.pick = function(opts)
         end
         return true
     end
-    local picker = pickers.new(opts, require("telescope.themes").get_dropdown({
+    local picker = pickers.new(opts, require("telescope.themes").get_ivy({
         layout_config = {
             width = string.len(opts.vals[1] or "") + 5,
             height = #opts.vals + 4,
+            -- mirror = true,
+            -- anchor = "W"
         }
     }))
     picker:register_completion_callback(function(picker_instance)
@@ -56,13 +67,3 @@ M.pick = function(opts)
 end
 
 return M
-
--- for id, rec in ipairs(records) do
---     -- if rec.Record.Name == selection[1] then
---     --     vim.notify("Changing to Dir: ", rec.Record.Path)
---     --     vim.cmd("Oil --float " .. string.gsub(rec.Record.Path, '\n', ''))
---     -- end
--- end
-
--- vim.api.nvim_put({ color_map[selection[1]] }, "", false, true)
--- end)

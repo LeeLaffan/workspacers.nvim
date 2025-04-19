@@ -19,6 +19,19 @@ local rpc_names = {
     replace = 'lee.ws.replace',
 }
 
+local function read_file(file)
+    local f = io.open(file, "r")
+    if not f then return {} end
+
+    local lines = {}
+    for line in f:lines() do
+        table.insert(lines, line)
+    end
+    f:close()
+
+    return lines
+end
+
 local function try_get_input(input_opts, allow_blank)
     local success, input = pcall(function() return vim.fn.input(input_opts) end)
     print("input:   " .. input)
@@ -117,20 +130,43 @@ local function select_workspace(ws)
 end
 
 M.WorkspacersList = function(idx)
-    rpc.req_res(rpc_names.list, function(fmt_vals)
+    rpc.req_res(rpc_names.list, function(rpc_obj)
+        -- Arrange into lua friendly format
+        local fmt_vals = {}
+        local ws_by_fmt = {} -- Have a keyed table to lookup in preview
+        for _, entry in pairs(rpc_obj) do
+            for fmt, ws in pairs(entry) do
+                table.insert(fmt_vals, fmt)
+                ws_by_fmt[fmt] = ws
+            end
+        end
         local tele_opts = {
             vals = fmt_vals,
+            ws_by_fmt = ws_by_fmt,
             callback = function(call_opts)
                 call_opts.close()
                 if call_opts.selected and call_opts.selected[1] then
-                    rpc.req_res(rpc_names.record, select_workspace, call_opts.selected[1])
+                    select_workspace(ws_by_fmt[call_opts.selected[1]])
                 else
                     vim.notify("No selected Workspace", vim.log.levels.ERROR)
                 end
             end,
+            previewer = require('telescope.previewers').new_buffer_previewer({
+                title = "Preview",
+                define_preview = function(self, entry, _)
+                    local path = ws_by_fmt[entry.value].Path
+                    require('telescope.previewers').buffer_previewer_maker(path, self.state.bufnr, {
+                        use_ft_detect = true
+                    })
+                end
+            }),
             prompt_title = icons.hammer .. " Workspacers " .. icons.planet,
             keys = M.opts.keys,
             start_idx = idx or 0,
+            get_preview_content = function(entry)
+                -- vim.print(entry.value)
+                return ws_by_fmt[entry.value].Path
+            end,
         }
         tele.pick(tele_opts)
     end)

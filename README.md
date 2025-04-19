@@ -2,5 +2,7 @@
 - [ ] CLI Version
 - [ ] Min Width
 - [ ] Check handling with no entries
-- [ ] Remove / at EOL
-- [ ] Set CWD
+- [x] Remove / at EOL
+- [x] Set CWD
+- [ ] Set CWD (Files)
+

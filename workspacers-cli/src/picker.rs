@@ -1,24 +1,9 @@
-use common::{
-    json::{self, Workspace},
-    setup::config::AppConfig,
-};
+use common::json::Workspace;
 use fzf_wrapped::{Fzf, Layout};
 use log::info;
 
-use crate::operations;
-
-fn get_expect_arg() -> String {
-    format!("--expect={},{},{},{}", ADD_KEY, DEL_KEY, INC_KEY, DEC_KEY)
-}
-
-const ADD_KEY: &str = "ctrl-a";
-const DEL_KEY: &str = "ctrl-x";
-const INC_KEY: &str = "ctrl-u";
-const DEC_KEY: &str = "ctrl-d";
-
 // Returns an Option Some Workspace or None exited safely
-pub fn pick_workspace(cfg: &AppConfig) -> Result<Option<Workspace>, String> {
-    let workspaces = json::read_workspaces(&cfg.json_path)?;
+pub fn pick_workspace(workspaces: Vec<Workspace>) -> Result<Option<Workspace>, String> {
     if workspaces.is_empty() {
         return Err("No workspaces found. Add one with the -a option.".to_string());
     };
@@ -42,44 +27,16 @@ pub fn pick_workspace(cfg: &AppConfig) -> Result<Option<Workspace>, String> {
 
             match lines.len() {
                 1 => Ok(Some(ws_match.1.clone())), // This function expects a new WS for adding so clone to allow
-                2 => {
-                    let key = &lines[1];
-                    info!("Key press from fzf: {key}");
-                    match key.as_str() {
-                        ADD_KEY => match operations::add_workspace(cfg) {
-                            Ok(_) => Ok(pick_workspace(&cfg)?),
-                            Err(e) => Err(e),
-                        },
-                        DEL_KEY => match operations::delete_workspace(&ws_match.1, cfg) {
-                            Ok(_) => Ok(pick_workspace(&cfg)?),
-                            Err(e) => Err(e),
-                        },
-                        INC_KEY => match operations::move_workspace(&ws_match.1, cfg, true) {
-                            Ok(_) => Ok(pick_workspace(&cfg)?),
-                            Err(e) => Err(e),
-                        },
-                        DEC_KEY => match operations::move_workspace(&ws_match.1, cfg, false) {
-                            Ok(_) => Ok(pick_workspace(&cfg)?),
-                            Err(e) => Err(e),
-                        },
-                        key => Err(format!("Unrecognised keypress expected from fzf: {key}")),
-                    }
-                }
                 _ => Err("Unexpected number of args".to_string()),
             }
         }
     }
 }
 
-// Expect back either "", "<selected>", or "<expect keybind>\n<selected>"
 fn run_fzf(values: Vec<String>) -> Result<Option<String>, String> {
     let mut fzf = Fzf::builder()
         .layout(Layout::Reverse)
         .header("Workspace:")
-        .custom_args(vec![
-            format!("--height={}", values.len() + 4), // TODO Check this when adding configuration
-            get_expect_arg(),
-        ])
         .build()
         .or_else(|err| Err(format!("fzf - Could not build: {err}")))?;
 
