@@ -15,8 +15,8 @@ mod rpc_commands;
 #[derive(Parser, Debug)]
 #[command(long_about = None)]
 struct NvimArgs {
-    #[arg(long = "json-file")]
-    json_file: Option<PathBuf>,
+    #[arg(long = "json-dir")]
+    json_dir: Option<PathBuf>,
 
     #[arg(long = "config-file")]
     config_file: Option<PathBuf>,
@@ -38,9 +38,9 @@ fn main() -> Result<(), Error> {
 
 async fn run_workspacers(args: NvimArgs) -> Result<(), Error> {
     let log_file = setup_logger()?;
-    let json_file = json::get_json_path(args.json_file, "workspacers")?;
-    info!("Using json file: {}", json_file.to_string_lossy());
-    let (nvim, io_handler) = create::new_parent(rpc_commands::NeovimHandler { log_file, json_file }).await;
+    let json_dir = json::get_json_dir(args.json_dir)?;
+    info!("Using json dir: {}", json_dir.to_string_lossy());
+    let (nvim, io_handler) = create::new_parent(rpc_commands::NeovimHandler { log_file, json_dir }).await;
     match io_handler.await {
         Ok(_) => {
             info!("App Completed. Closing");

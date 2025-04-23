@@ -1,8 +1,8 @@
 use serde::Serialize;
-use std::fmt;
+use std::fmt::{self, format};
 use std::fs::File;
-use std::io::Error;
 use std::io::{BufReader, BufWriter};
+use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 
 use serde::Deserialize;
@@ -24,19 +24,23 @@ impl fmt::Display for Workspace {
     }
 }
 
-pub fn get_json_path(json_arg: Option<PathBuf>, app_name: &str) -> Result<PathBuf, Error> {
-    Ok(match json_arg {
-        Some(arg_file) => arg_file,
-        None => path::get_data_dir(app_name)?.join(format!("{app_name}.json")),
-    })
+const APP_NAME: &str = "workspacers";
+
+pub fn get_json_dir(json_arg: Option<PathBuf>) -> Result<PathBuf, Error> {
+    Ok(json_arg.unwrap_or(path::get_data_dir(APP_NAME)?))
+}
+
+pub fn get_json_file(json_dir: &PathBuf, ws_name: &str) -> PathBuf {
+    json_dir.join(format!("{ws_name}.json"))
 }
 
 // Retuns an empty Vec when file not found or malformed
-pub fn read_workspaces(json_path: &PathBuf) -> Vec<Workspace> {
-    let file = match File::open(json_path) {
+pub fn read_workspaces(json_file: &PathBuf) -> Vec<Workspace> {
+    let file = match File::open(&json_file) {
         Ok(file) => file,
         Err(_) => return Vec::new(),
     };
+
     match serde_json::from_reader(BufReader::new(file)) {
         Ok(workspaces) => workspaces,
         Err(_) => Vec::new(),
@@ -44,20 +48,12 @@ pub fn read_workspaces(json_path: &PathBuf) -> Vec<Workspace> {
 }
 
 // If json path is not found, it will be created here
-pub fn write_workspaces<T>(json_path: &PathBuf, workspaces: &Vec<T>) -> Result<(), String>
+pub fn write_workspaces<T>(json_file: &PathBuf, workspaces: &Vec<T>) -> Result<(), Error>
 where
     T: Serialize,
 {
-    let file = File::create(json_path).map_err(|err| {
-        format!(
-            "Failed to create json file: {}, err: {err}",
-            json_path.to_string_lossy().to_string()
-        )
-    })?;
-    serde_json::to_writer_pretty(BufWriter::new(file), workspaces).map_err(|err| {
-        format!(
-            "Failed to write workspaces json: {}, err: {err}",
-            json_path.to_string_lossy().to_string()
-        )
-    })
+    let file = File::create(json_file)?;
+    serde_json::to_writer_pretty(BufWriter::new(file), workspaces)
+        .map_err(|err| Error::from(Error::new(ErrorKind::Other, err)))?;
+    Ok(())
 }

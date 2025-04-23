@@ -6,31 +6,28 @@ local icons = require('utils.icons')
 
 M.setup = function(opts)
     M.opts = opts or {}
+    M.opts.keys = opts.keys or {
+        ["<C-x>"] = M.DeleteWorkspace,
+        ["<C-e>"] = M.EditWorkspace,
+        ["<C-u>"] = function(o) M.PromoteWorkspace(o, true) end,
+        ["<C-d>"] = function(o) M.PromoteWorkspace(o, false) end,
+        ["<C-a>"] = function(o)
+            M.WorkspacersAdd(o)
+        end,
+    }
 end
 
 local rpc_names = {
-    list = 'lee.ws.list',
-    add = 'lee.ws.add',
-    delete = 'lee.ws.delete',
-    json = 'lee.ws.json',
-    promote = 'lee.ws.promote',
-    demote = 'lee.ws.demote',
-    record = 'lee.ws.record',
-    replace = 'lee.ws.replace',
+    list = 'WORKSPACERS.LIST',
+    list_all = 'WORKSPACERS.LIST_ALL',
+    add = 'WORKSPACERS.ADD',
+    delete = 'WORKSPACERS.DELETE',
+    json = 'WORKSPACERS.JSON',
+    promote = 'WORKSPACERS.PROMOTE',
+    demote = 'WORKSPACERS.DEMOTE',
+    record = 'WORKSPACERS.RECORD',
+    replace = 'WORKSPACERS.REPLACE',
 }
-
-local function read_file(file)
-    local f = io.open(file, "r")
-    if not f then return {} end
-
-    local lines = {}
-    for line in f:lines() do
-        table.insert(lines, line)
-    end
-    f:close()
-
-    return lines
-end
 
 local function try_get_input(input_opts, allow_blank)
     local success, input = pcall(function() return vim.fn.input(input_opts) end)
@@ -51,7 +48,8 @@ local function try_get_input(input_opts, allow_blank)
 end
 
 local function get_buf_path()
-    local path = vim.fn.getbufinfo(0)[1].name
+    vim.print(vim.fn.expand('%:p'))
+    local path = vim.fn.expand('%:p')
     if path:match("^oil://") then
         return path:gsub("^oil://", "")
     else
@@ -59,13 +57,13 @@ local function get_buf_path()
     end
 end
 
-M.WorkspacersAdd = function()
+M.WorkspacersAdd = function(opts)
+    opts.close()
     local name, success = try_get_input({
         prompt = "Enter Workspace Name: "
     })
     if not success then return end
 
-    vim.print(vim.fn.getbufinfo(0)[1].name)
     local path, success = try_get_input({
         prompt = "Enter Workspace Path: ",
         default = get_buf_path(),
@@ -78,7 +76,10 @@ M.WorkspacersAdd = function()
         path = path
     }
 
-    rpc.req(rpc_names.add, new_ws)
+    rpc.req_res(rpc_names.add, function(ws)
+        M.WorkspacersList(opts)
+    end, opts.ws_name, new_ws)
+    M.WorkspacersList(opts)
 end
 
 M.EditWorkspace = function(opts)
@@ -103,21 +104,22 @@ M.EditWorkspace = function(opts)
         }
 
         if opts.selected and opts.selected[1] then
-            rpc.req(rpc_names.replace, rpc_args)
+            rpc.req(rpc_names.replace, opts.ws_name, rpc_args)
             opts.close()
-            M.WorkspacersList()
+            M.WorkspacersList(opts)
         else
             vim.notify("No selected Workspace", vim.log.levels.ERROR)
         end
-    end, opts.selected[1])
+    end, opts.ws_name, opts.selected[1])
 end
 
 M.DeleteWorkspace = function(opts)
     if vim.fn.confirm("Delete Selected Workspace: ", "&Yes\n&No", 2) == 1 then
         if opts.selected and opts.selected[1] then
-            rpc.req(rpc_names.delete, opts.selected[1])
-            opts.close()
-            M.WorkspacersList()
+            rpc.req_res(rpc_names.delete, function()
+                opts.close()
+                M.WorkspacersList(opts)
+            end, opts.ws_name, opts.selected[1])
         else
             vim.notify("No selected Workspace", vim.log.levels.ERROR)
         end
@@ -129,7 +131,7 @@ local function select_workspace(ws)
     vim.cmd("cd " .. ws.Path)
 end
 
-M.WorkspacersList = function(idx)
+M.WorkspacersList = function(opts)
     rpc.req_res(rpc_names.list, function(rpc_obj)
         -- Arrange into lua friendly format
         local fmt_vals = {}
@@ -140,42 +142,38 @@ M.WorkspacersList = function(idx)
                 ws_by_fmt[fmt] = ws
             end
         end
-        local tele_opts = {
-            vals = fmt_vals,
-            ws_by_fmt = ws_by_fmt,
-            callback = function(call_opts)
-                call_opts.close()
-                if call_opts.selected and call_opts.selected[1] then
-                    select_workspace(ws_by_fmt[call_opts.selected[1]])
-                else
-                    vim.notify("No selected Workspace", vim.log.levels.ERROR)
-                end
-            end,
-            previewer = require('telescope.previewers').new_buffer_previewer({
-                title = "Preview",
-                define_preview = function(self, entry, _)
-                    local path = ws_by_fmt[entry.value].Path
-                    require('telescope.previewers').buffer_previewer_maker(path, self.state.bufnr, {
-                        use_ft_detect = true
-                    })
-                end
-            }),
-            prompt_title = icons.hammer .. " Workspacers " .. icons.planet,
-            keys = M.opts.keys,
-            start_idx = idx or 0,
-            get_preview_content = function(entry)
-                -- vim.print(entry.value)
-                return ws_by_fmt[entry.value].Path
-            end,
-        }
-        tele.pick(tele_opts)
-    end)
+        opts.records = fmt_vals
+        opts.ws_by_fmt = ws_by_fmt
+        opts.callback = function(call_opts)
+            call_opts.close()
+            if call_opts.selected and call_opts.selected[1] then
+                select_workspace(ws_by_fmt[call_opts.selected[1]])
+            else
+                vim.notify("No selected Workspace", vim.log.levels.ERROR)
+            end
+        end
+        opts.previewer = require('telescope.previewers').new_buffer_previewer({
+            title = "Preview",
+            define_preview = function(self, entry, _)
+                local path = ws_by_fmt[entry.value].Path
+                require('telescope.previewers').buffer_previewer_maker(path, self.state.bufnr, {
+                    use_ft_detect = true
+                })
+            end
+        })
+        opts.keys = M.opts.keys
+        opts.get_preview_content = function(entry)
+            return ws_by_fmt[entry.value].Path
+        end
+
+        tele.pick(opts)
+    end, opts.ws_name)
 end
 
-M.WorkspacersJson = function()
+M.WorkspacersJson = function(ws_name)
     rpc.req_res(rpc_names.json, function(json_path)
         vim.cmd("edit " .. json_path)
-    end)
+    end, ws_name)
 end
 
 M.PromoteWorkspace = function(opts, promote)
@@ -188,9 +186,10 @@ M.PromoteWorkspace = function(opts, promote)
     if opts.selected and opts.selected[1] then
         rpc.req_res(rpc_action, function(new_idx)
                 opts.close()
-                M.WorkspacersList(new_idx)
+                opts.selected_idx = new_idx
+                M.WorkspacersList(opts)
             end,
-            opts.selected[1])
+            opts.ws_name, opts.selected[1])
     else
         vim.notify("No selected Workspace", vim.log.levels.ERROR)
     end
@@ -205,9 +204,10 @@ M.DemoteWorkspace = function(opts)
         rpc.req_res(rpc_names.demote,
             function(new_idx)
                 opts.close()
-                M.WorkspacersList(new_idx)
+                opts.selected_idx = new_idx
+                M.WorkspacersList(opts)
             end,
-            opts.selected[1])
+            opts.ws_name, opts.selected[1])
     else
         vim.notify("No selected Workspace", vim.log.levels.ERROR)
     end

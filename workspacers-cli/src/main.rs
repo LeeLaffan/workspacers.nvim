@@ -31,7 +31,7 @@ fn main() {
 fn run() -> Result<(), String> {
     let args = CliArgs::parse();
     logging::setup_logger().map_err(|err| format!("Could not setup logger: {err}"))?;
-    let json_file = json::get_json_path(args.json_file, "workspacers").unwrap();
+    let json_file = json::get_json_dir(args.json_file).unwrap();
     if args.print_json {
         println!("{}", json_file.to_string_lossy().to_string());
         return Ok(());

@@ -9,19 +9,19 @@ use std::{io::Error, path::PathBuf};
 
 #[derive(Clone)]
 pub struct NeovimHandler {
-    pub json_file: PathBuf,
+    pub json_dir: PathBuf,
     pub log_file: PathBuf,
 }
 
 // Request
-const RPC_WS_LIST: &str = "lee.ws.list";
-const RPC_WS_ADD: &str = "lee.ws.add";
-const RPC_WS_DELETE: &str = "lee.ws.delete";
-const RPC_WS_JSON: &str = "lee.ws.json";
-const RPC_WS_PROMOTE: &str = "lee.ws.promote";
-const RPC_WS_DEMOTE: &str = "lee.ws.demote";
-const RPC_WS_RECORD: &str = "lee.ws.record";
-const RPC_WS_REPLACE: &str = "lee.ws.replace";
+const RPC_WS_LIST: &str = "WORKSPACERS.LIST";
+const RPC_WS_ADD: &str = "WORKSPACERS.ADD";
+const RPC_WS_DELETE: &str = "WORKSPACERS.DELETE";
+const RPC_WS_JSON: &str = "WORKSPACERS.JSON";
+const RPC_WS_PROMOTE: &str = "WORKSPACERS.PROMOTE";
+const RPC_WS_DEMOTE: &str = "WORKSPACERS.DEMOTE";
+const RPC_WS_RECORD: &str = "WORKSPACERS.RECORD";
+const RPC_WS_REPLACE: &str = "WORKSPACERS.REPLACE";
 
 fn rpc_cmd<T>(command_name: &str, result: Result<T, impl std::fmt::Debug>) -> Result<T, Value> {
     result.map_err(|_| Value::String(format!("Error running {command_name}").into()))
@@ -38,30 +38,42 @@ impl Handler for NeovimHandler {
         args: Vec<Value>,
         _neovim: Neovim<Self::Writer>,
     ) -> Result<Value, Value> {
-        info!("Request received: {}, {:?}", name, args);
-        let workspaces = json::read_workspaces(&self.json_file); // Read the json once at the top level
-        info!(
-            "Workspaces read from file {}: {}",
-            &self.json_file.to_string_lossy(),
-            workspaces.len()
-        );
-        match name.as_ref() {
-            RPC_WS_LIST => rpc_cmd(RPC_WS_LIST, rpc_ws_list(&workspaces)),
-            RPC_WS_RECORD => rpc_cmd(RPC_WS_RECORD, rpc_ws_record(&workspaces, args)),
+        info!("REQUEST: {}, {:?}", name, args);
+        let response = handle_req(name, args, &self.json_dir);
+        if response.is_ok() {
+            info!("RESPONSE: {}", response.to_owned().unwrap());
+        } else {
+            error!("ERROR: {}", response.as_ref().err().unwrap());
+        }
+        response
+    }
+}
 
-            RPC_WS_ADD => rpc_cmd(RPC_WS_ADD, rpc_ws_add(workspaces, &self.json_file, args)),
-            RPC_WS_DELETE => rpc_cmd(RPC_WS_DELETE, rpc_ws_delete(&workspaces, &self.json_file, args)),
+fn handle_req(name: String, args: Vec<Value>, json_dir: &PathBuf) -> Result<Value, Value> {
+    let ws_arg = args[0].as_str().unwrap();
+    let json_path = &json::get_json_file(json_dir, ws_arg);
 
-            RPC_WS_PROMOTE => rpc_cmd(RPC_WS_PROMOTE, rpc_ws_promote(&workspaces, &self.json_file, args)),
-            RPC_WS_DEMOTE => rpc_cmd(RPC_WS_DEMOTE, rpc_ws_demote(&workspaces, &self.json_file, args)),
+    if name == RPC_WS_JSON {
+        return Ok(Value::String(json_dir.to_string_lossy().into()));
+    }
+    info!("Received arg[0]: {}", args[0]);
 
-            RPC_WS_REPLACE => rpc_cmd(RPC_WS_REPLACE, rpc_ws_replace(workspaces, &self.json_file, args)),
+    let workspaces = json::read_workspaces(json_path); // Read the json once at the top level 
 
-            RPC_WS_JSON => Ok(Value::String(self.json_file.to_string_lossy().into())),
-            _ => {
-                error!("Unknown request: {}", name);
-                Err(Value::String("Unknown request".into()))
-            }
+    match name.as_str() {
+        RPC_WS_LIST => rpc_cmd(RPC_WS_LIST, rpc_ws_list(&workspaces)),
+        RPC_WS_RECORD => rpc_cmd(RPC_WS_RECORD, rpc_ws_record(&workspaces, args)),
+
+        RPC_WS_ADD => rpc_cmd(RPC_WS_ADD, rpc_ws_add(workspaces, json_path, args)),
+        RPC_WS_DELETE => rpc_cmd(RPC_WS_DELETE, rpc_ws_delete(&workspaces, json_path, args)),
+
+        RPC_WS_PROMOTE => rpc_cmd(RPC_WS_PROMOTE, rpc_ws_promote(&workspaces, json_path, args)),
+        RPC_WS_DEMOTE => rpc_cmd(RPC_WS_DEMOTE, rpc_ws_demote(&workspaces, json_path, args)),
+
+        RPC_WS_REPLACE => rpc_cmd(RPC_WS_REPLACE, rpc_ws_replace(workspaces, json_path, args)),
+        _ => {
+            error!("Unknown request: {}", name);
+            Ok(Value::Boolean(false))
         }
     }
 }
@@ -99,8 +111,8 @@ fn rpc_ws_list(workspaces: &Vec<Workspace>) -> Result<Value, String> {
 }
 
 fn rpc_ws_record(workspaces: &Vec<Workspace>, args: Vec<Value>) -> Result<Value, String> {
-    info!("request to pick: {}", args[0]);
-    let arg_pick = args[0].as_str().unwrap();
+    info!("request to pick: {}", args[1]);
+    let arg_pick = args[1].as_str().unwrap();
     match formatter::fmt(&workspaces)
         .iter()
         .find(|(ws_str, _)| arg_pick.eq(ws_str))
@@ -124,14 +136,13 @@ fn rpc_ws_record(workspaces: &Vec<Workspace>, args: Vec<Value>) -> Result<Value,
 }
 
 fn rpc_ws_add(mut workspaces: Vec<Workspace>, json_file: &PathBuf, args: Vec<Value>) -> Result<Value, Error> {
-    if let Some(ws_arg) = args[0].as_map() {
+    if let Some(ws_arg) = args[1].as_map() {
         let ws = json::Workspace {
             name: convert_ws_add(ws_arg, "name")?,
             path: formatter::unfmt_path(convert_ws_add(ws_arg, "path")?),
         };
-        info!("req to add: [[{}]]", ws.path);
+        info!("req to add: {ws} to json file: {}", json_file.to_string_lossy());
         workspaces.insert(workspaces.len(), ws);
-
         match json::write_workspaces(json_file, &workspaces) {
             Ok(()) => Ok(Value::Boolean(true)),
             Err(e) => {
@@ -143,19 +154,16 @@ fn rpc_ws_add(mut workspaces: Vec<Workspace>, json_file: &PathBuf, args: Vec<Val
             }
         }
     } else {
-        error!("could not read workspace add data - outer");
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "could not read workspace add data - outer",
-        ))
+        // TODO LL
+        Ok(Value::Boolean(false))
     }
 }
 
 fn rpc_ws_delete(workspaces: &Vec<Workspace>, json_file: &PathBuf, args: Vec<Value>) -> Result<Value, Error> {
-    info!("req to del: {}", args[0]);
+    info!("req to del: {}", args[1]);
     let fmt_vals = formatter::fmt(&workspaces);
     info!("count before del: {}", workspaces.len());
-    let ws_fmt_arg = args[0].as_str().unwrap();
+    let ws_fmt_arg = args[1].as_str().unwrap();
     let remaining_ws: Vec<&json::Workspace> = fmt_vals
         .iter()
         .filter(|(ws_str, _)| !ws_fmt_arg.eq(ws_str))
@@ -174,7 +182,7 @@ fn rpc_ws_delete(workspaces: &Vec<Workspace>, json_file: &PathBuf, args: Vec<Val
 
 fn rpc_ws_replace(mut workspaces: Vec<Workspace>, json_file: &PathBuf, args: Vec<Value>) -> Result<Value, Error> {
     let fmt_vals = formatter::fmt(&workspaces);
-    let arg_pairs = args[0]
+    let arg_pairs = args[1]
         .as_map()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Invalid arguments"))?;
 
@@ -220,7 +228,7 @@ fn rpc_ws_replace(mut workspaces: Vec<Workspace>, json_file: &PathBuf, args: Vec
 
 fn rpc_ws_promote(workspaces: &Vec<Workspace>, json_file: &PathBuf, args: Vec<Value>) -> Result<Value, Error> {
     let fmt_vals = formatter::fmt(workspaces);
-    let ws_fmt_arg = args[0].as_str().unwrap();
+    let ws_fmt_arg = args[1].as_str().unwrap();
     let mut new_idx = 0;
     let mut new_workspaces: Vec<&json::Workspace> = fmt_vals.iter().map(|(_, ws)| ws).collect();
     if let Some(idx) = fmt_vals.iter().position(|(ws_str, _)| ws_fmt_arg.eq(ws_str)) {
@@ -240,7 +248,7 @@ fn rpc_ws_promote(workspaces: &Vec<Workspace>, json_file: &PathBuf, args: Vec<Va
 
 fn rpc_ws_demote(workspaces: &Vec<Workspace>, json_file: &PathBuf, args: Vec<Value>) -> Result<Value, Error> {
     let fmt_vals = formatter::fmt(workspaces);
-    let ws_fmt_arg = args[0].as_str().unwrap();
+    let ws_fmt_arg = args[1].as_str().unwrap();
     let mut new_idx = 0;
     let mut new_workspaces: Vec<&json::Workspace> = fmt_vals.iter().map(|(_, ws)| ws).collect();
     if let Some(idx) = fmt_vals.iter().position(|(ws_str, _)| ws_fmt_arg.eq(ws_str)) {

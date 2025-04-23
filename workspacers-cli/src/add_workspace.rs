@@ -8,7 +8,7 @@ pub fn add(workspaces: &Vec<Workspace>, json_path: &PathBuf) -> Result<(), Strin
     println!("Adding Workspace: {new_ws}");
     let mut new_workspaces = workspaces.clone();
     new_workspaces.insert(workspaces.len(), new_ws);
-    json::write_workspaces(json_path, &new_workspaces)
+    json::write_workspaces(json_path, &new_workspaces).map_err(|err| "".to_string())
 }
 
 fn read_new_workspace(workspaces: &Vec<Workspace>) -> Result<Workspace, String> {

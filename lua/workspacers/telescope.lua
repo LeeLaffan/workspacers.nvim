@@ -5,6 +5,7 @@ local previewers = require "telescope.previewers"
 local conf = require("telescope.config").values
 local actions = require("telescope.actions")
 local action_state = require "telescope.actions.state"
+local themes = require("telescope.themes")
 
 local close = function(opts)
     actions.close(opts.bufnr)
@@ -15,15 +16,46 @@ local select_callback = function(opts)
     opts.callback(opts)
 end
 
+local function get_theme(opts)
+    if type(opts.theme) == "function" then
+        return opts.theme()
+    end
+    if type(opts.theme) == "table" then
+        return opts.theme
+    end
+
+    if opts.theme == 'ivy' then
+        return themes.get_ivy({
+            layout_config = {
+                width = string.len(opts.records[1] or "") + 5,
+                height = #opts.records + 4,
+            }
+        })
+    elseif opts.theme == 'dropdown' then
+        return themes.get_dropdown({
+            layout_config = {
+                -- width = string.len(opts.records[1] or "") + 50,
+                --     height = #opts.records + 4,
+                mirror = true,
+                --     anchor = "W"
+            }
+        })
+    elseif opts.theme == 'cursor' then
+        return themes.get_cursor()
+    else
+        vim.print("ERROR: Workspacers has unknown theme value in setup")
+        return themes.get_cursor()
+    end
+end
+
 --@params opts table Options
---@params opts.vals string[] Values to be displayed
+--@params opts.records string[] Records to be displayed
 --@params opts.close bool Should close on select (default: true)
 --@params opts.callback function Callback on close
 M.pick = function(opts)
     opts = opts or {}
-    opts.start_idx = opts.start_idx or 0
     opts.finder = finders.new_table {
-        results = opts.vals
+        results = opts.records
     }
     opts.sorter = conf.generic_sorter({})
     -- opts.previewer = opts.previewer or previewers.new_buffer_previewer({
@@ -52,16 +84,9 @@ M.pick = function(opts)
         end
         return true
     end
-    local picker = pickers.new(opts, require("telescope.themes").get_ivy({
-        layout_config = {
-            width = string.len(opts.vals[1] or "") + 5,
-            height = #opts.vals + 4,
-            -- mirror = true,
-            -- anchor = "W"
-        }
-    }))
+    local picker = pickers.new(opts, get_theme(opts))
     picker:register_completion_callback(function(picker_instance)
-        picker_instance:set_selection(opts.start_idx)
+        picker_instance:set_selection(opts.selected_idx)
     end)
     picker:find()
 end

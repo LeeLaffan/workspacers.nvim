@@ -2,8 +2,8 @@ local M = {}
 
 local start_job = function(opts)
     local args = { opts.binary }
-    if opts.json_file then
-        table.insert(args, '--json-file=' .. M.opts.json_file .. '')
+    if opts.json_dir then
+        table.insert(args, '--json-dir=' .. M.opts.json_dir)
     end
     return vim.fn.jobstart(
         args,
