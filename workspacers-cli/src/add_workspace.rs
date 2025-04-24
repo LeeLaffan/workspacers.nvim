@@ -8,7 +8,7 @@ pub fn add(workspaces: &Vec<Workspace>, json_path: &PathBuf) -> Result<(), Strin
     println!("Adding Workspace: {new_ws}");
     let mut new_workspaces = workspaces.clone();
     new_workspaces.insert(workspaces.len(), new_ws);
-    json::write_workspaces(json_path, &new_workspaces).map_err(|err| "".to_string())
+    json::write_workspaces(json_path, &new_workspaces).map_err(|e| format!("Failed to write workspaces: {e}"))
 }
 
 fn read_new_workspace(workspaces: &Vec<Workspace>) -> Result<Workspace, String> {
@@ -36,14 +36,14 @@ fn read_new_workspace(workspaces: &Vec<Workspace>) -> Result<Workspace, String> 
     })
 }
 
-fn read_line(prop: String, initial: &str) -> Result<String, String> {
+fn read_line(property_name: String, initial: &str) -> Result<String, String> {
     let user_value = rustyline::DefaultEditor::new()
         .unwrap()
-        .readline_with_initial(&format!("Enter {prop}: "), (initial, ""))
+        .readline_with_initial(&format!("Enter {property_name}: "), (initial, ""))
         .map_err(|_| "Operation Cancelled".to_string())?;
 
     match user_value.is_empty() {
-        true => Err(format!("{prop} cannot be empty")),
+        true => Err(format!("{property_name} cannot be empty")),
         false => Ok(user_value),
     }
 }

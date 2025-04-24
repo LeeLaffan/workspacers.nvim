@@ -23,27 +23,27 @@ $DirOpen = "cd {0}; ls"
 # $DirOpen = "explorer {0}"
 # $DirOpen = "xdg-open {0}"
 
+# Target a specific json-file
+$WsName = "workspacers"
+
 # Code
 function ws {
-    if (-not [string]::IsNullOrWhiteSpace($WsJson)) { # Add --json-file arg
+    $wsArgs += @($args)
+    if (-not [string]::IsNullOrWhiteSpace($WsJson)) {
         $wsArgs += @("--json-file=$WsJson")
     }
-
-    if ($args[0] -eq "-a") { # Add Command
-        $wsArgs += @($args)
+    if ($args[0] -eq "-a") {
         & $WsExe $wsArgs # `Add` needs to call directly without capturing output
         return
-    } 
-    if ($args[0] -eq "-j") { # Print Json File
-        $wsArgs += @($args)
+    }
+    if ($args[0] -eq "-j") {
         Invoke-Expression ($FileOpen -f (& $WsExe $wsArgs))
         return
-    } 
-
+    }
     # Call App and capture output
     $path = & $WsExe $wsArgs
     if ($LASTEXITCODE -eq 0 -and $path) {
-        if (Test-Path -Path $path) { # Open Path output
+        if (Test-Path -Path $path) { # Open Path
             if (Test-Path -Path $path -PathType Leaf) {
                 Invoke-Expression ($FileOpen -f $path.Trim())
             } else {

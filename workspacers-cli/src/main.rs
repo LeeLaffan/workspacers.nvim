@@ -9,7 +9,7 @@ mod picker;
 struct CliArgs {
     /// JSON File to be used to store workspaces
     #[arg(long = "json-file", hide = false)]
-    json_file: Option<std::path::PathBuf>,
+    json_dir: Option<std::path::PathBuf>,
 
     /// Print the JSON file used
     #[arg(short = 'j', long, default_value_t = false)]
@@ -18,20 +18,19 @@ struct CliArgs {
     /// Add a new Workspace
     #[arg(short = 'a', long, default_value_t = false)]
     add: bool,
-}
 
-fn main() {
-    if let Err(e) = run() {
-        eprintln!("ERROR: {}", e);
-        std::process::exit(1);
-    }
+    /// Name of list/json file to target
+    #[arg(short = 'n', long, default_value = "workspacers")]
+    name: String,
 }
 
 // Use Result<_, String> throughout in order to capture errors to display to user
-fn run() -> Result<(), String> {
+fn main() -> Result<(), String> {
     let args = CliArgs::parse();
     logging::setup_logger().map_err(|err| format!("Could not setup logger: {err}"))?;
-    let json_file = json::get_json_dir(args.json_file).unwrap();
+    let json_dir = json::get_json_dir(args.json_dir).unwrap();
+    let json_file = json_dir.join(format!("{}.json", args.name));
+
     if args.print_json {
         println!("{}", json_file.to_string_lossy().to_string());
         return Ok(());
@@ -43,17 +42,14 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
 
+    if workspaces.is_empty() {
+        return Err("No workspaces found. Add one with the -a option.".to_string());
+    };
+
     match picker::pick_workspace(workspaces)? {
         None => Ok(()), // Don't print when no workspace selected
         Some(ws) => {
             return Ok(println!("{}", &ws.path));
         }
     }
-}
-
-#[derive(Debug)]
-pub enum AppError {
-    Cancelled(std::io::Error),
-    InvalidData(String),
-    NotFound,
 }

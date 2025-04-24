@@ -4,10 +4,6 @@ use log::info;
 
 // Returns an Option Some Workspace or None exited safely
 pub fn pick_workspace(workspaces: Vec<Workspace>) -> Result<Option<Workspace>, String> {
-    if workspaces.is_empty() {
-        return Err("No workspaces found. Add one with the -a option.".to_string());
-    };
-
     let fmt_vals = common::formatter::fmt(&workspaces);
     let vals: Vec<String> = fmt_vals.iter().map(|(ws_str, _)| ws_str.to_string()).collect();
 
