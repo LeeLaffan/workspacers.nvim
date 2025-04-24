@@ -1,0 +1,1 @@
+/target/x86_64-pc-windows-gnu/release/libcommon.rlib: /project/common/src/formatter.rs /project/common/src/json.rs /project/common/src/lib.rs /project/common/src/setup/config.rs /project/common/src/setup/logging.rs /project/common/src/setup/mod.rs /project/common/src/setup/path.rs
