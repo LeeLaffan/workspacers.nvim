@@ -6,7 +6,7 @@ local icons = require("utils.icons")
 
 M.setup = function(opts)
     M.opts = opts or {}
-    M.opts.keys = opts.keys or {
+    M.opts.keys = M.opts.keys or {
         ["<C-x>"] = M.DeleteWorkspace,
         ["<C-e>"] = M.EditWorkspace,
         ["<C-u>"] = function(o) M.PromoteWorkspace(o, true) end,

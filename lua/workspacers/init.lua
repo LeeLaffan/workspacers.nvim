@@ -9,7 +9,12 @@ local function setup_commands()
     vim.api.nvim_create_user_command("WorkspacersJson",
         function(o) cmds.WorkspacersJson(o.args) end, { nargs = 1 })
     vim.api.nvim_create_user_command("WorkspacersList",
-        function(o) cmds.WorkspacersList(o.args) end, { nargs = 1 })
+        function(o)
+            cmds.WorkspacersList({
+                theme = "ivy",
+                ws_name = o.args,
+            })
+        end, { nargs = 1 })
     vim.api.nvim_create_user_command("WorkspacersLog",
         function() cmds.OpenLogFile() end, { nargs = 0 })
 end
@@ -28,8 +33,8 @@ end
 ---@param opts.binary string: Direct path to workspacers-nvim binary(If not in path)
 ---@param opts.theme string: Telescope theme: `ivy` |` dropdown` | `cursor`
 M.setup = function(opts)
-    M.opts = opts or {}
-    M.opts.theme = M.opts.theme or "ivy"
+    opts = opts or {}
+    M.theme = opts.theme or "ivy"
     rpc.setup(M.opts)
     cmds.setup(M.opts)
     setup_commands()

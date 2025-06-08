@@ -3,7 +3,7 @@ local M = {}
 local start_job = function(opts)
     local args = { opts.binary }
     if opts.json_dir then
-        table.insert(args, '--json-dir=' .. M.opts.json_dir)
+        table.insert(args, "--json-dir=" .. opts.json_dir)
     end
     return vim.fn.jobstart(
         args,
@@ -36,9 +36,9 @@ M.req_res = function(name, callback, ...)
 end
 
 M.setup = function(opts)
-    M.opts = opts or {}
+    opts = opts or {}
     if not opts.binary then
-        M.opts.binary = "workspacers-nvim"
+        opts.binary = "workspacers-nvim"
     end
     M.job_id = start_job(opts)
 end
