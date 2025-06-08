@@ -1,8 +1,8 @@
 local M = {}
 
-local rpc = require('workspacers.rpc_handler')
-local tele = require('workspacers.telescope')
-local icons = require('utils.icons')
+local rpc = require("workspacers.rpc_handler")
+local tele = require("workspacers.telescope")
+local icons = require("utils.icons")
 
 M.setup = function(opts)
     M.opts = opts or {}
@@ -18,15 +18,16 @@ M.setup = function(opts)
 end
 
 local rpc_names = {
-    list = 'WORKSPACERS.LIST',
-    list_all = 'WORKSPACERS.LIST_ALL',
-    add = 'WORKSPACERS.ADD',
-    delete = 'WORKSPACERS.DELETE',
-    json = 'WORKSPACERS.JSON',
-    promote = 'WORKSPACERS.PROMOTE',
-    demote = 'WORKSPACERS.DEMOTE',
-    record = 'WORKSPACERS.RECORD',
-    replace = 'WORKSPACERS.REPLACE',
+    list = "WORKSPACERS.LIST",
+    list_all = "WORKSPACERS.LIST_ALL",
+    add = "WORKSPACERS.ADD",
+    delete = "WORKSPACERS.DELETE",
+    json = "WORKSPACERS.JSON",
+    promote = "WORKSPACERS.PROMOTE",
+    demote = "WORKSPACERS.DEMOTE",
+    record = "WORKSPACERS.RECORD",
+    replace = "WORKSPACERS.REPLACE",
+    log = "WORKSPACERS.LOG",
 }
 
 local function try_get_input(input_opts, allow_blank)
@@ -48,8 +49,8 @@ local function try_get_input(input_opts, allow_blank)
 end
 
 local function get_buf_path()
-    vim.print(vim.fn.expand('%:p'))
-    local path = vim.fn.expand('%:p')
+    vim.print(vim.fn.expand("%:p"))
+    local path = vim.fn.expand("%:p")
     if path:match("^oil://") then
         return path:gsub("^oil://", "")
     else
@@ -152,11 +153,11 @@ M.WorkspacersList = function(opts)
                 vim.notify("No selected Workspace", vim.log.levels.ERROR)
             end
         end
-        opts.previewer = require('telescope.previewers').new_buffer_previewer({
+        opts.previewer = require("telescope.previewers").new_buffer_previewer({
             title = "Preview",
             define_preview = function(self, entry, _)
                 local path = ws_by_fmt[entry.value].Path
-                require('telescope.previewers').buffer_previewer_maker(path, self.state.bufnr, {
+                require("telescope.previewers").buffer_previewer_maker(path, self.state.bufnr, {
                     use_ft_detect = true
                 })
             end
@@ -211,6 +212,12 @@ M.DemoteWorkspace = function(opts)
     else
         vim.notify("No selected Workspace", vim.log.levels.ERROR)
     end
+end
+
+M.OpenLogFile = function()
+    rpc.req_res(rpc_names.log, function(log_file)
+        vim.cmd("edit " .. log_file)
+    end)
 end
 
 return M

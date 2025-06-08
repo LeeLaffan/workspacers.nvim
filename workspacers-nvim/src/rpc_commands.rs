@@ -22,6 +22,7 @@ const RPC_WS_PROMOTE: &str = "WORKSPACERS.PROMOTE";
 const RPC_WS_DEMOTE: &str = "WORKSPACERS.DEMOTE";
 const RPC_WS_RECORD: &str = "WORKSPACERS.RECORD";
 const RPC_WS_REPLACE: &str = "WORKSPACERS.REPLACE";
+const RPC_WS_LOG: &str = "WORKSPACERS.LOG";
 
 fn rpc_cmd<T>(command_name: &str, result: Result<T, impl std::fmt::Debug>) -> Result<T, Value> {
     result.map_err(|_| Value::String(format!("Error running {command_name}").into()))
@@ -39,7 +40,7 @@ impl Handler for NeovimHandler {
         _neovim: Neovim<Self::Writer>,
     ) -> Result<Value, Value> {
         info!("REQUEST: {}, {:?}", name, args);
-        let response = handle_req(name, args, &self.json_dir);
+        let response = handle_req(name, args, &self.json_dir, &self.log_file);
         if response.is_ok() {
             info!("RESPONSE: {}", response.to_owned().unwrap());
         } else {
@@ -49,14 +50,21 @@ impl Handler for NeovimHandler {
     }
 }
 
-fn handle_req(name: String, args: Vec<Value>, json_dir: &PathBuf) -> Result<Value, Value> {
-    let ws_arg = args[0].as_str().unwrap();
+fn handle_req(name: String, args: Vec<Value>, json_dir: &PathBuf, log_file: &PathBuf) -> Result<Value, Value> {
+    if name == RPC_WS_LOG {
+        return Ok(Value::String(log_file.to_string_lossy().into()));
+    }
+
+    info!("Received arg[0]: {}", args[0]);
+    let ws_arg = args[0]
+        .as_str()
+        .ok_or_else(|| "Could not match Workspace name from args")?;
     let json_path = &json::get_json_file(json_dir, ws_arg);
 
+    // Return early to not read json
     if name == RPC_WS_JSON {
-        return Ok(Value::String(json_dir.to_string_lossy().into()));
+        return Ok(Value::String(json_path.to_string_lossy().into()));
     }
-    info!("Received arg[0]: {}", args[0]);
 
     let workspaces = json::read_workspaces(json_path); // Read the json once at the top level 
 
@@ -111,7 +119,7 @@ fn rpc_ws_list(workspaces: &Vec<Workspace>) -> Result<Value, String> {
 }
 
 fn rpc_ws_record(workspaces: &Vec<Workspace>, args: Vec<Value>) -> Result<Value, String> {
-    info!("request to pick: {}", args[1]);
+    info!("request to pick: {}", args[0]);
     let arg_pick = args[1].as_str().unwrap();
     match formatter::fmt(&workspaces)
         .iter()
@@ -182,7 +190,7 @@ fn rpc_ws_delete(workspaces: &Vec<Workspace>, json_file: &PathBuf, args: Vec<Val
 
 fn rpc_ws_replace(mut workspaces: Vec<Workspace>, json_file: &PathBuf, args: Vec<Value>) -> Result<Value, Error> {
     let fmt_vals = formatter::fmt(&workspaces);
-    let arg_pairs = args[1]
+    let arg_pairs = args[0]
         .as_map()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Invalid arguments"))?;
 

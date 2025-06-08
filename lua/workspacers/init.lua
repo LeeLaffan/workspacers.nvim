@@ -1,15 +1,17 @@
 local M = {}
 
-local rpc = require('workspacers.rpc_handler')
-local cmds = require('workspacers.commands')
+local rpc = require("workspacers.rpc_handler")
+local cmds = require("workspacers.commands")
 
 local function setup_commands()
-    vim.api.nvim_create_user_command('WorkspacersAdd',
+    vim.api.nvim_create_user_command("WorkspacersAdd",
         function(o) M.WorkspacersAdd(o.args) end, { nargs = 1 })
-    vim.api.nvim_create_user_command('WorkspacersJson',
-        function(o) M.WorkspacersJson(o.args) end, { nargs = 1 })
-    vim.api.nvim_create_user_command('WorkspacersList',
-        function(o) cmds.WorkspacersList({ ws_name = o.args }) end, { nargs = 1 })
+    vim.api.nvim_create_user_command("WorkspacersJson",
+        function(o) cmds.WorkspacersJson(o.args) end, { nargs = 1 })
+    vim.api.nvim_create_user_command("WorkspacersList",
+        function(o) cmds.WorkspacersList(o.args) end, { nargs = 1 })
+    vim.api.nvim_create_user_command("WorkspacersLog",
+        function() cmds.OpenLogFile() end, { nargs = 0 })
 end
 
 M.WorkspacersList = function(ws_name)
@@ -27,7 +29,7 @@ end
 ---@param opts.theme string: Telescope theme: `ivy` |` dropdown` | `cursor`
 M.setup = function(opts)
     M.opts = opts or {}
-    M.opts.theme = opts.theme or 'ivy'
+    M.opts.theme = M.opts.theme or "ivy"
     rpc.setup(M.opts)
     cmds.setup(M.opts)
     setup_commands()

@@ -9,3 +9,14 @@
 - [ ] ESC to exit add
 - [ ] Tele theme options
 
+# More TODO
+
+## General
+- [ ] ? Icon if path not found
+- [x] windows paths
+
+## nvim
+- [x] Edit
+
+## CLI
+
